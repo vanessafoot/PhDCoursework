@@ -1,0 +1,105 @@
+---
+title: 'Cormorant: Count Data 6136'
+author: "Vanessa Foot"
+date: "November 23, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(vcd) #install required packages
+library(vcdExtra)
+library(MASS)
+library(car)
+install.packages("AER")
+library(AER)
+```
+
+Cormorants data: This problem is described in DDAR Exercise 11.4.  It concerns the counts of male cormorants showing “advertising behavior” to attract females for breeding observed two or three times a week at six stations in a tree-nesting colony for an entire breeding season. The number of advertising birds was counted and these observations were classified by characteristics of the trees 
+and nests. The goal was to determine how this behavior varies temporally over the season and spatially over observation stations, as well as with characteristics of nesting sites. The response variable is count and other predictors are shown below. See help(Cormorants, package="vcdExtra") for further details.
+
+```{r}
+data("Cormorants", package = "vcdExtra")
+str(Cormorants)
+```
+The predictors are week, station, nest (whether they had one, some of one, or none), nest height (low, medium, high), density (zero, few, moderate, more), and tree health (dead or healthy). 
+
+First, we need to look at the counts of birds on display, ignoring all predictors. 
+```{r}
+table(Cormorants$count)
+```
+```{r}
+with(Cormorants, c(mean=mean(count),
+                   var=var(count),
+                   ratio=var(count)/mean(count))) #quickly checks the Poisson assumption without predictors. Regardless of the outcome here, the assumption that mean=variance could be met when we add predictors later. 
+```
+```{r}
+plot(goodfit(Cormorants$count), xlab= "Number of Cormorants", 
+     main="Poisson") #plot rootogram to check Poisson goodness of fit w/o predictors
+```
+```{r}
+plot(goodfit(Cormorants$count, type="nbinomial"),
+     xlab= "Number of Cormorants", main= "Negative Binomial")  #plot rootogram to check NB goodness of fit w/o predictors 
+```
+Now we will fit the poisson model with all main effects. We use poisson because it's the default method, but we'll see later on if it's appropriate. 
+```{r}
+Cormorants.pois <- glm(count~.,data=Cormorants, family=poisson)
+Anova(Cormorants.pois) 
+```
+Only tree health is NS, we'll keep it for now in case of interactions later on. Next, we will interpret the coefficients in the model.
+```{r}
+round(cbind(beta=coef(Cormorants.pois),
+            expbeta=exp(coef(Cormorants.pois)),
+            pct=100* (exp(coef(Cormorants.pois))-1)), 3) #get coefficients
+```
+#FIGURE OUT HOW TO INTERPRET THESE BUGGERS
+And then we'll plot the model effects to understand the fitted model from predicted values, which are easier to interpret than the table of coefficients.
+```{r}
+library(effects); plot(allEffects(Cormorants.pois)) #plot model effects
+```
+```{r}
+Cormorants.pois1 <- update(Cormorants.pois,.~.^2)
+Anova(Cormorants.pois1) #check for interactions with all two-way terms
+```
+```{r}
+anova(Cormorants.pois, Cormorants.pois1, test="Chisq") #check the two models out
+```
+```{r}
+LRstats(Cormorants.pois, Cormorants.pois1) #AIC and BIC
+```
+```{r}
+plot(Cormorants.pois, which=c(1,5)) #plot the residuals
+```
+```{r}
+studentized.resid <- rstudent(Cormorants.pois) #look at studentized residuals
+plot(studentized.resid)
+```
+```{r}
+influencePlot(Cormorants.pois) #check for outliers
+```
+```{r}
+Cormorants[c(151, 248),] #look at the outliers
+```
+```{r}
+outlierTest(Cormorants.pois, cutoff=.001) #outlier test
+```
+It's only case 151 that is an outlier-- it shouldn't be enough to affect our outcome.
+```{r}
+dispersiontest(Cormorants.pois) #check for the dispersion assumption
+```
+```{r}
+Cormorants.qpois <- glm(count~., data=Cormorants, family=quasipoisson)
+phi <-summary(Cormorants.qpois)$dispersion
+phi
+```
+```{r}
+Cormorants.nb <- glm.nb(count~., data=Cormorants)
+theta <- summary(Cormorants.nb)$dispersion
+theta
+```
+```{r}
+LRstats(Cormorants.pois, Cormorants.qpois, Cormorants.nb)
+```
+
+
+
