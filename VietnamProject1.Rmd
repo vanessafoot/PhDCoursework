@@ -1,0 +1,284 @@
+---
+title: 'VietnamProject1'
+author: "Vanessa Foot"
+date: "October 19, 2017"
+output: "html_document"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+
+The data set Vietnam in vcdExtra gives a 2x5x4 contingency table in frequency form reflecting a survey of student opinion on the Vietnam War at the University of North Carolina in May 1967. The table variables are sex, year in school, and response, which has categories (A) defeat North Vietnam by widespread bombing and land invasion; (B) Maintain the present policy; (C) De-escalate military activity, stop bombing and begin negotiations; and (D) Withdraw military forces immediately. How does the chosen response vary by sex and year?
+
+```{r vcdExtra}
+#install vcdExtra
+```
+
+```{r}
+#look at the data
+data(Vietnam, package = "vcdExtra")
+names(Vietnam)
+str(Vietnam)
+```
+
+```{r}
+#reorganize and make a table
+data(Vietnam, package = "vcdExtra")
+Vietnam.tab <- xtabs(Freq ~ year+sex+response, Vietnam)
+ftable(Vietnam.tab, row.vars = 1)
+```
+```{r}
+#separate response A, dropping all others 
+a.tab <- xtabs(Freq ~ year+sex+response, data = Vietnam, subset = response == "A", drop.unused.levels = TRUE)
+str(a.tab)
+```
+
+```{r}
+#mosaic of response A by sex and year
+vcd::mosaic(Freq~response+sex+year, data= a.tab, shade= TRUE)
+```
+
+
+
+```{r}
+#repeat with response B, C, and D
+#separate response B, dropping all others 
+b.tab <- xtabs(Freq ~ year+sex+response, data = Vietnam, subset = response == "B", drop.unused.levels = TRUE)
+#separate response C, dropping all others 
+c.tab <- xtabs(Freq ~ year+sex+response, data = Vietnam, subset = response == "C", drop.unused.levels = TRUE)
+#separate response D, dropping all others 
+d.tab <- xtabs(Freq ~ year+sex+response, data = Vietnam, subset = response == "D", drop.unused.levels = TRUE)
+```
+```{r}
+vcd::mosaic(~response+sex+year, data= b.tab, shade= TRUE)
+```
+```{r}
+vcd::mosaic(~response+sex+year, data= c.tab, shade= TRUE)
+```
+```{r}
+vcd::mosaic(~response+sex+year, data= d.tab, shade= TRUE)
+```
+```{r}
+#create proportion table for responses
+prop.tableA <- prop.table(a.tab)
+prop.tableB <- prop.table(b.tab)
+prop.tableC <- prop.table(c.tab)
+prop.tableD <- prop.table(d.tab)
+print(prop.tableA)
+```
+```{r}
+print(prop.tableB)
+```
+```{r}
+print(prop.tableC)
+```
+
+```{r}
+print(prop.tableD)
+```
+
+```{r}
+# turn those to data frames
+PropA <- as.data.frame(prop.tableA)
+PropB <- as.data.frame(prop.tableB)
+PropC <- as.data.frame(prop.tableC)
+PropD <- as.data.frame(prop.tableD)
+```
+
+```{r}
+# look at frequency of response A proportions
+plot(Freq~sex+year, ylab= "Frequency of A Responses", data=PropA)
+```
+```{r}
+#look at frequency of response B proportions
+plot(Freq~sex+year, ylab= "Frequency of B Responses", data=PropB)
+```
+```{r}
+#look at frequency of response C proportions
+plot(Freq~sex+year, ylab= "Frequency of C Responses", data=PropC)
+```
+```{r}
+#look at frequency of response D proportions
+plot(Freq~sex+year, ylab= "Frequency of D Responses", data=PropD)
+```
+```{r}
+#separate out sex
+BySex <- xtabs(Freq~sex+response, data=Vietnam.tab)
+
+#analyse the associations between sex and response
+CrosstableSex <- margin.table(BySex, 2:1)
+gmodels::CrossTable(CrosstableSex, prop.chisq=FALSE, prop.c= TRUE, format= "SPSS")
+```
+```{r}
+#separate out year
+ByYear <- xtabs(Freq~year+response, data=Vietnam.tab)
+
+#analyse the associations between year and response
+CrosstableYear <- margin.table(ByYear, 2:1)
+gmodels::CrossTable(CrosstableYear, prop.chisq= FALSE, prop.c= TRUE, format= "SPSS")
+```
+
+```{r}
+#find chi-square for frequency of sex and response
+summary(ByYear)
+```
+
+```{r}
+#mosaic plot
+plot(ByYear, shade= TRUE)
+```
+
+```{r}
+#find chi-square for year and reponse
+summary(BySex)
+```
+```{r}
+#mosaic plot
+plot(BySex, shade= TRUE)
+```
+```{r vcd}
+vcd::assocstats(BySex)
+```
+```{r}
+vcd::assocstats(ByYear)
+```
+
+```{r MASS}
+#fit a loglinear model
+MASS::loglm(Freq~response+year, data=Vietnam.tab)
+```
+
+```{r}
+#follow with a mosaic plot
+mosaicplot(Freq~response+year, shade= TRUE, xlab= "Response", ylab= "Year", data=Vietnam.tab)
+```
+
+```{r}
+#mosaic plot of response by year
+plot(ByYear, shade= TRUE)
+```
+
+```{r}
+#find the odds for year and response
+vcd::loddsratio(Freq~year+response, log=TRUE, ref=NULL, data= Vietnam.tab)
+```
+```{r}
+#find the odds for sex and response
+vcd::loddsratio(Freq~sex+response, log=TRUE, ref=NULL, data= Vietnam.tab)
+```
+```{r}
+#get all of the loddsratios
+x_lor <- vcd::loddsratio(Vietnam.tab)
+coef(x_lor)
+x_lor
+confint(x_lor)
+summary(x_lor)
+```
+
+```{r}
+#conduct CMH test for the ordinal variables, year and response
+vcdExtra::CMHtest(Freq~response+year, data= Vietnam.tab)
+```
+
+```{r}
+#modeling Freq as a function of the three variables using the glm function. Family is set to poisson since we're modelling counts (independence model, assuming the three variables are independent of one another)
+mod0 <- glm(Freq ~ response + year + sex, 
+            data = Vietnam.tab, family = poisson)
+summary(mod0)
+```
+This seems to be a good model. There are highly significant coefficients and p-values near O. However, the residual deviance is not good since we have 423.83 on 31 df. This indicates a poor fit. 
+```{r}
+#calculate p-value for mod0
+pchisq(deviance(mod0), df = df.residual(mod0), lower.tail = F)
+```
+The null of this test is that the expected frequencies satisfy the given loglinear model. Clearly they do not!
+```{r}
+#plot the model with only response and year
+mod1 <- glm(Freq ~ response + year,
+            data = Vietnam.tab, family = poisson)
+summary(mod1)
+```
+This seems to be a similar model. There are highly significant coefficients and p-values near O. However, the residual deviance is 1772.9 on 39 df which indicates a poor fit. 
+
+```{r}
+#find the chi square for that model
+pchisq(0.424, df = 31, lower.tail = F)
+```
+
+```{r}
+#look at interactions
+mod2 <- glm((Freq ~ response * year),
+            data = Vietnam.tab, family = poisson)
+summary(mod2)
+```
+
+```{r}
+#verify that the homogenous assiciation model fits just as well as the saturated model by performing a likelihood ratio test 
+anova(mod0, mod1, mod2)
+```
+
+```{r}
+#find the chi square for model 2
+pchisq(deviance(mod2), df= df.residual(mod2), lower.tail = F)
+```
+
+```{r}
+#find the chi square for model 2
+pchisq(deviance(mod1), df= df.residual(mod1), lower.tail = F)
+```
+
+```{r}
+#plot the residuals from model 2
+plot(mod2)
+```
+
+```{r}
+#plot the residuals from model 0
+plot(mod0)
+```
+```{r}
+#plot the saturated model
+plot(Vietnam.tab, shade=TRUE)
+```
+```{r}
+#LogLM for year and response
+MASS::loglm(Freq~(year+response), data=Vietnam.tab)
+```
+
+```{r}
+#plot loddsratio of response by sex
+plot(vcd::loddsratio(Freq~ sex+response, data=BySex, xlab= "Response", ylab= "LOR Sex/Response"))
+```
+```{r}
+#plot loddsratio of response by year
+plot(vcd::loddsratio(Freq~ year+response, data=ByYear, xlab= "Response", ylab= "LOR Year/Response"))
+```
+```{r}
+#plot it all!
+plot(vcd::loddsratio(Vietnam.tab), xlab= "Year", ylab= "LOR Year/Sex")
+```
+```{r}
+#correspondence analyses of association (response by year)
+Vietnam.ca <- ca::ca(ByYear)
+plot(Vietnam.ca)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

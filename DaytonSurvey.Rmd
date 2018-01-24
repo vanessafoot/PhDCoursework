@@ -1,0 +1,262 @@
+---
+title: "DaytonSurvey"
+author: "Vanessa Foot"
+date: "December 14, 2017"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The data set DaytonSurvey in vcdExtra gives a 2 x 2 x 2 x 2 x 2 table in the form of a frequency data frame containing results of a survey of high school students regarding whether they had every used alcohol (A), cigarettes (C) or marijuana (M), classified by sex (S) and race (R). The goal here is first to understand the associations among the variables A, C, M, and then determine whether and how they differ with sex and race.
+
+```{r}
+library(vcd)
+library(vcdExtra)
+library(MASS)
+library(ggplot2)
+library(car)
+library(oddsratio)
+library(sjPlot)
+```
+
+```{r}
+data("DaytonSurvey")
+str(DaytonSurvey)
+```
+Ignore (collapse over) race and sex, and ask you to fit and plot various loglinear models.
+```{r}
+Dayton.agg <- aggregate(Freq~cigarette+alcohol+marijuana, data = DaytonSurvey, FUN = paste)
+str(Dayton.agg)
+```
+Reorganize, and make a table.
+```{r}
+Dayton.tab <- xtabs(Freq ~ (alcohol+marijuana+cigarette), DaytonSurvey)
+ftable(Dayton.tab, row.vars = 1)
+```
+```{r}
+Dayton.prop <- prop.table(Dayton.tab)
+print(Dayton.prop)
+```
+```{r}
+plot(Freq~alcohol+marijuana, ylab= "Proportion of Substance Use", data=Dayton.prop)
+```
+```{r}
+Crosstable <- margin.table(Dayton.prop, 2:1)
+gmodels::CrossTable(Crosstable, prop.chisq= FALSE, prop.c= FALSE, format= "SPSS")
+```
+```{r}
+#find chi-square for frequency 
+summary(Dayton.prop)
+```
+```{r}
+#mosaic plot
+plot(Dayton.prop, shade= TRUE)
+```
+```{r}
+assocstats(Dayton.prop)
+```
+```{r}
+Daytontab.loglm <- xtabs(Freq ~ cigarette+alcohol+marijuana, DaytonSurvey)
+ftable(Daytontab.loglm, row.vars = 1)
+#fit a loglinear model
+MASS::loglm(Freq~cigarette+alcohol+marijuana, data=Daytontab.loglm)
+```
+```{r}
+mosaic(Daytontab.loglm, shade=TRUE)
+```
+```{r}
+mod0 <- glm(Freq~(cigarette+marijuana+alcohol)^2, data=Daytontab.loglm, family = poisson)
+summary(mod0)
+```
+```{r}
+
+```
+
+```{r}
+#plot the additive model with all possible interactions
+mod1 <- glm(Freq ~.^2,
+            data = Daytontab.loglm, family = poisson)
+summary(mod1)
+```
+```{r}
+#verify that the homogenous assiciation model fits just as well as the saturated model by performing a likelihood ratio test 
+anova(mod0, mod1)
+```
+```{r}
+pchisq(deviance(mod1), df = df.residual(mod1), lower.tail = F)
+```
+```{r}
+LRstats(mod0, mod1) #AIC and BIC
+```
+
+```{r}
+mosaic(mod1, shade=TRUE)
+```
+```{r}
+mosaic(mod0, shade=TRUE)
+```
+For the second goal, extend the analysis to include the variables sex and race as potential explanatory variables of substance use.There are several ways to go about this:  You could fit logit models predicting the use of each substance from the remaining variables, or loglinear models that include the sex*race association.
+```{r}
+fullmod0 <- glm(Freq~., data=DaytonSurvey, family = poisson)
+summary(fullmod0)
+```
+```{r}
+fullmod1 <- glm(Freq~.^2, data=DaytonSurvey, family = poisson)
+summary(fullmod1)
+```
+```{r}
+#verify that the homogenous assiciation model fits just as well as the saturated model by performing a likelihood ratio test 
+anova(fullmod0, fullmod1)
+```
+```{r}
+Dayton.glm <- glm(Freq~ sex*(cigarette+alcohol+marijuana), data=DaytonSurvey, family= "poisson")
+LRstats(Dayton.glm)
+anova(Dayton.glm)
+```
+```{r}
+mosaic(Dayton.glm, shade=TRUE, formula=Freq~cigarette+alcohol+marijuana, residuals_type= "rstandard", labeling=labeling_residuals, main="Model: [CigaretteSex][MarijuanaSex][AlcoholSex]")
+```
+
+
+```{r}
+Dayton.glm1 <- glm(Freq~ race*(cigarette+alcohol+marijuana), data=DaytonSurvey, family= "poisson")
+LRstats(Dayton.glm1)
+anova(Dayton.glm1)
+```
+
+```{r}
+mosaic(Dayton.glm1, shade=TRUE, formula=Freq~cigarette+alcohol+marijuana, residuals_type= "rstandard", labeling=labeling_residuals, main="Model: [CigaretteRace][MarijuanaRace][AlcoholRace]")
+```
+
+
+```{r}
+fourfold(Dayton.tab, mfcol=c(1,2), fontsize=18)
+```
+```{r}
+DaytonSexA.tab <- xtabs(Freq ~ alcohol+sex, DaytonSurvey)
+ftable(DaytonSexA.tab, row.vars = 1)
+loddsratio(DaytonSexA.tab)
+prop.table(DaytonSexA.tab)
+fourfold(DaytonSexA.tab)
+```
+
+
+
+```{r}
+DaytonSexM.tab <- xtabs(Freq ~ marijuana+sex, DaytonSurvey)
+ftable(DaytonSexM.tab, row.vars = 1)
+loddsratio(DaytonSexM.tab)
+prop.table(DaytonSexM.tab)
+fourfold(DaytonSexM.tab)
+```
+```{r}
+DaytonSexC.tab <- xtabs(Freq ~ cigarette+sex, DaytonSurvey)
+ftable(DaytonSexC.tab, row.vars = 1)
+loddsratio(DaytonSexC.tab)
+prop.table(DaytonSexC.tab)
+fourfold(DaytonSexC.tab)
+```
+```{r}
+DaytonRaceA.tab <- xtabs(Freq ~ alcohol+race, DaytonSurvey)
+ftable(DaytonRaceA.tab, row.vars = 1)
+loddsratio(DaytonRaceA.tab)
+prop.table(DaytonRaceA.tab)
+fourfold(DaytonRaceA.tab)
+```
+```{r}
+DaytonRaceM.tab <- xtabs(Freq ~ marijuana+race, DaytonSurvey)
+ftable(DaytonRaceM.tab, row.vars = 1)
+loddsratio(DaytonRaceM.tab)
+prop.table(DaytonRaceM.tab)
+fourfold(DaytonRaceM.tab)
+```
+```{r}
+DaytonRaceC.tab <- xtabs(Freq ~ cigarette+race, DaytonSurvey)
+ftable(DaytonRaceC.tab, row.vars = 1)
+loddsratio(DaytonRaceC.tab)
+prop.table(DaytonRaceC.tab)
+fourfold(DaytonRaceC.tab)
+```
+```{r}
+DaytonRace <- glm(Freq~(cigarette+alcohol+marijuana+race)^2,data=DaytonSurvey, family=poisson)
+LRstats(DaytonRace)
+Anova(DaytonRace)
+```
+```{r}
+DaytonSex <- glm(Freq~(cigarette+alcohol+marijuana+sex)^2,data=DaytonSurvey, family=poisson)
+LRstats(DaytonSex)
+Anova(DaytonSex)
+```
+```{r}
+print(DaytonSex)
+```
+```{r}
+mosaic(DaytonSex, shade=TRUE)
+```
+```{r}
+obs<- log(Dayton.tab[1,,]/Dayton.tab[2,,])
+pred2<-cbind(DaytonSurvey[,1:3], fit=predict(Dayton.glm1))
+pred2<-cbind(subset(pred2), obs=as.vector(obs))
+head(pred2)
+
+```
+```{r}
+library(oddsratio)
+DaytonS <- expand.dft(DaytonSurvey)
+fit_glm <- glm(race~(marijuana+alcohol), data=DaytonS, family="binomial")
+glm <- or_glm(data=DaytonSurvey, model= fit_glm, incr=list)
+glm
+```
+```{r}
+fit_glm2 <- glm(sex~(marijuana+alcohol), data=DaytonS, family= "binomial")
+glm2 <- or_glm(data=DaytonSurvey, model= fit_glm2, incr=list)
+glm2
+plot_model(fit_glm2)
+```
+```{r}
+race.num <- as.numeric(DaytonSurvey$race)
+cig.num <- as.numeric(DaytonSurvey$cigarette)
+alc.num <- as.numeric(DaytonSurvey$alcohol)
+marij.num <- as.numeric(DaytonSurvey$marijuana)
+sex.num <- as.numeric(DaytonSurvey$sex)
+```
+
+```{r}
+#find the chi square for model 2
+pchisq(deviance(Dayton.glm), df= df.residual(Dayton.glm), lower.tail = F)
+
+pchisq(deviance(Dayton.glm1), df= df.residual(Dayton.glm), lower.tail = F)
+```
+
+```{r}
+Dayton.pois <- glm(Freq~.^2,data=DaytonSurvey, family=poisson)
+Anova(Dayton.pois) 
+```
+```{r}
+library(lmtest)
+coeftest(Dayton.glm)
+cbind(coef=coef(Dayton.glm),
+      oddsratio=exp(coef(Dayton.glm)), exp(confint(Dayton.glm)))
+```
+```{r}
+coeftest(Dayton.glm1)
+cbind(coef=coef(Dayton.glm1),
+      oddsratio=exp(coef(Dayton.glm1)), exp(confint(Dayton.glm1)))
+```
+```{r}
+mod1 <- glm(Freq ~ cigarette + alcohol+ marijuana,
+            data = DaytonSurvey, family = poisson)
+summary(mod1)
+```
+This seems to be a similar model. There are highly significant coefficients and p-values near O. However, the residual deviance is 1772.9 on 39 df which indicates a poor fit. 
+```{r}
+#find the chi square for model 2
+pchisq(deviance(mod1), df= df.residual(mod1), lower.tail = F)
+```
+```{r}
+#LogLM for year and response
+MASS::loglm(Freq~(alcohol*cigarette*marijuana), data=DaytonSurvey)
+```
+
+
